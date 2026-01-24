@@ -1,0 +1,11 @@
+# Binary
+dining-philosophers-go
+*.exe
+
+# Tests
+*.test
+*.out
+
+# IDE
+.vscode/
+
