@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"strconv"
+	"sync"
 	"time"
 )
 
@@ -12,6 +13,16 @@ type Config struct {
     TimeToEat   time.Duration
     TimeToSleep time.Duration
     TimesToEat  int
+	StartTime   time.Time 
+}
+
+type Philosopher struct {
+    id          int
+    leftFork    chan bool
+    rightFork   chan bool
+    timesEaten  int
+    lastMeal    time.Time
+    mtx         sync.Mutex
 }
 
 func parseArgs(args []string) (*Config, error) {
@@ -77,4 +88,79 @@ func (conf *Config) validate() error {
 		return fmt.Errorf("times to eat must be more than 0")
 	}
 	return nil
+}
+
+func runSimulation(conf *Config) {
+    conf.StartTime = time.Now()
+
+    // Create forks
+    forks := make([]chan bool, conf.NumPhilos)
+    for i := range forks {
+        forks[i] = make(chan bool, 1)
+        forks[i] <- true
+    }
+
+    // Create philosophers
+    philos := make([]*Philosopher, conf.NumPhilos)
+    for i := 0; i < conf.NumPhilos; i++ {
+        philos[i] = &Philosopher{
+            id:         i + 1,
+            leftFork:   forks[i],
+            rightFork:  forks[(i+1)%conf.NumPhilos],
+            timesEaten: 0,
+            lastMeal:   conf.StartTime,
+        }
+    }
+
+    // Start all philosophers as goroutines
+    var wg sync.WaitGroup
+    for i, philo := range philos {
+        wg.Add(1)
+        isEven := i%2 == 0
+        
+        go func(p *Philosopher, even bool) {
+            defer wg.Done()
+            p.run(conf, even)
+        }(philo, isEven)
+    }
+
+    // Wait forever (or until Ctrl+C)
+    wg.Wait()
+}
+
+func (philo *Philosopher) run(conf *Config, isEven bool) {
+    for {
+        // Think
+        philo.printAction(philo.id, "is thinking", conf)
+
+        // Take forks (even/odd strategy to avoid deadlock)
+        if isEven {
+            <-philo.leftFork
+            philo.printAction(philo.id, "has taken a fork", conf)
+            <-philo.rightFork
+            philo.printAction(philo.id, "has taken a fork", conf)
+        } else {
+            <-philo.rightFork
+            philo.printAction(philo.id, "has taken a fork", conf)
+            <-philo.leftFork
+            philo.printAction(philo.id, "has taken a fork", conf)
+        }
+
+        // Eat
+        philo.printAction(philo.id, "is eating", conf)
+        time.Sleep(conf.TimeToEat)
+
+        // Release forks
+        philo.leftFork <- true
+        philo.rightFork <- true
+
+        // Sleep
+        philo.printAction(philo.id, "is sleeping", conf)
+        time.Sleep(conf.TimeToSleep)
+    }
+}
+
+func (philo *Philosopher) printAction(id int, action string, conf *Config) {
+    timestamp := time.Since(conf.StartTime).Milliseconds()
+    fmt.Printf("%d %d %s\n", timestamp, id, action)
 }
