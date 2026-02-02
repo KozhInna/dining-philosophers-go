@@ -18,5 +18,8 @@ func main() {
         os.Exit(1)
     }
 	
-	runSimulation(config)
+	if err := runSimulation(config); err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+        os.Exit(1)
+	}
 }

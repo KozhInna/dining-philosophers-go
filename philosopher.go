@@ -1,10 +1,12 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 	"sync"
 	"time"
+	"golang.org/x/sync/errgroup"
 )
 
 type Config struct {
@@ -90,7 +92,7 @@ func (conf *Config) validate() error {
 	return nil
 }
 
-func runSimulation(conf *Config) {
+func runSimulation(conf *Config) error {
     conf.StartTime = time.Now()
 
     // Create forks
@@ -112,43 +114,66 @@ func runSimulation(conf *Config) {
         }
     }
 
-    // Start all philosophers as goroutines
-    var wg sync.WaitGroup
+	g, ctx := errgroup.WithContext(context.Background())
+    // Start all philosophers as goroutines with context cancellation
     for i, philo := range philos {
-        wg.Add(1)
-        isEven := i%2 == 0
-        
-        go func(p *Philosopher, even bool) {
-            defer wg.Done()
-            p.run(conf, even)
-        }(philo, isEven)
+		p := philo
+
+        g.Go(func() error {
+            return p.run(ctx, conf, i%2 == 0)
+        })
     }
 
-    // Wait forever (or until Ctrl+C)
-    wg.Wait()
+	return g.Wait()
 }
 
-func (philo *Philosopher) run(conf *Config, isEven bool) {
+func takeFork(ctx context.Context, fork chan bool) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-fork:
+		return nil
+	}
+}
+
+func (philo *Philosopher) run(ctx context.Context, conf *Config, isEven bool) error {
     for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
         // Think
         philo.printAction(philo.id, "is thinking", conf)
 
         // Take forks (even/odd strategy to avoid deadlock)
         if isEven {
-            <-philo.leftFork
-            philo.printAction(philo.id, "has taken a fork", conf)
-            <-philo.rightFork
+            if err := takeFork(ctx, philo.leftFork); err != nil {
+				return err
+			} 
+			philo.printAction(philo.id, "has taken a fork", conf)
+			if err := takeFork(ctx, philo.rightFork); err != nil {
+				return err
+			} 
             philo.printAction(philo.id, "has taken a fork", conf)
         } else {
-            <-philo.rightFork
-            philo.printAction(philo.id, "has taken a fork", conf)
-            <-philo.leftFork
+			if err := takeFork(ctx, philo.rightFork); err != nil {
+				return err
+			} 
+			philo.printAction(philo.id, "has taken a fork", conf)
+			if err := takeFork(ctx, philo.leftFork); err != nil {
+				return err
+			} 
             philo.printAction(philo.id, "has taken a fork", conf)
         }
 
         // Eat
-        philo.printAction(philo.id, "is eating", conf)
-        time.Sleep(conf.TimeToEat)
+		philo.printAction(philo.id, "is eating", conf)
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(conf.TimeToEat):
+		}
 
         // Release forks
         philo.leftFork <- true
@@ -156,7 +181,11 @@ func (philo *Philosopher) run(conf *Config, isEven bool) {
 
         // Sleep
         philo.printAction(philo.id, "is sleeping", conf)
-        time.Sleep(conf.TimeToSleep)
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(conf.TimeToSleep):
+		}
     }
 }
 
