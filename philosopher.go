@@ -124,7 +124,38 @@ func runSimulation(conf *Config) error {
         })
     }
 
+	g.Go(func() error {
+		return monitor(ctx, philos, conf)
+	})
+
 	return g.Wait()
+}
+
+func monitor(ctx context.Context, philos []*Philosopher, conf *Config) error {
+	ticker := time.NewTicker(10 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+			for _, philo := range philos {
+				if err := checkIsAlive(philo, conf); err != nil {
+					return err
+				}
+			}
+		}
+	}
+}
+
+func checkIsAlive(philo *Philosopher, conf *Config) error {
+	philo.mtx.Lock()
+	defer philo.mtx.Unlock()
+	if time.Since(philo.lastMeal) > conf.TimeToDie {
+		return fmt.Errorf("philo %d died", philo.id)
+	}
+	return nil
 }
 
 func takeFork(ctx context.Context, fork chan bool) error {
@@ -168,6 +199,9 @@ func (philo *Philosopher) run(ctx context.Context, conf *Config, isEven bool) er
         }
 
         // Eat
+		philo.mtx.Lock()
+		philo.lastMeal = time.Now()
+		philo.mtx.Unlock()
 		philo.printAction(philo.id, "is eating", conf)
 		select {
 		case <-ctx.Done():
