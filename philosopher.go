@@ -2,10 +2,12 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"sync"
 	"time"
+
 	"golang.org/x/sync/errgroup"
 )
 
@@ -27,45 +29,59 @@ type Philosopher struct {
     mtx         sync.Mutex
 }
 
+var (
+	ErrInvalidArgs  = errors.New("invalid number of arguments")
+    ErrInvalidValue = errors.New("invalid argument value")
+    ErrStarvation   = errors.New("philosopher starved")
+)
+
 func parseArgs(args []string) (*Config, error) {
 	argc := len(args)
 	if argc < 5 || argc > 6 {
-		return nil, fmt.Errorf("invalid number of arguments")
+		return nil, fmt.Errorf("%w: expected 4-5 arguments, got %d", 
+			ErrInvalidArgs, argc - 1)
 	}
 	numPhilos, err := parsePositiveInt(args[1], "number_of_philosophers")
     if err != nil {
-        return nil, err
+        return nil, fmt.Errorf("%w: %v", ErrInvalidValue, err)
     }
     
     timeToDie, err := parsePositiveInt(args[2], "time_to_die")
     if err != nil {
-        return nil, err
+        return nil, fmt.Errorf("%w: %v", ErrInvalidValue, err)
     }
     
     timeToEat, err := parsePositiveInt(args[3], "time_to_eat")
     if err != nil {
-        return nil, err
+        return nil, fmt.Errorf("%w: %v", ErrInvalidValue, err)
     }
     
     timeToSleep, err := parsePositiveInt(args[4], "time_to_sleep")
     if err != nil {
-        return nil, err
+        return nil, fmt.Errorf("%w: %v", ErrInvalidValue, err)
     }
     
     timesToEat := -1
     if argc == 6 {
         timesToEat, err = parsePositiveInt(args[5], "number_of_times_each_philosopher_must_eat")
         if err != nil {
-            return nil, err
+            return nil, fmt.Errorf("%w: %v", ErrInvalidValue, err)
         }
     }
-	return &Config{
-        NumPhilos:   numPhilos,
+
+	config := &Config{
+		NumPhilos:   numPhilos,
         TimeToDie:   time.Duration(timeToDie) * time.Millisecond,
         TimeToEat:   time.Duration(timeToEat) * time.Millisecond,
         TimeToSleep: time.Duration(timeToSleep) * time.Millisecond,
         TimesToEat:  timesToEat,
-    }, nil
+	}
+
+	if err := config.validate(); err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrInvalidValue, err)
+	}
+
+	return config, nil
 }
 
 func parsePositiveInt(arg, name string) (int, error) {
@@ -152,8 +168,9 @@ func monitor(ctx context.Context, philos []*Philosopher, conf *Config) error {
 func checkIsAlive(philo *Philosopher, conf *Config) error {
 	philo.mtx.Lock()
 	defer philo.mtx.Unlock()
+
 	if time.Since(philo.lastMeal) > conf.TimeToDie {
-		return fmt.Errorf("philo %d died", philo.id)
+		return fmt.Errorf("%w: philosopher %d died", ErrStarvation, philo.id)
 	}
 	return nil
 }
