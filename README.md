@@ -8,9 +8,19 @@ A classic concurrency problem where five philosophers sit at a round table and s
 
 ## Implementation
 
-- **Goroutines** - each philosopher runs concurrently
+### Concurrency Handling
+- **Goroutines** - each philosopher runs as an independent goroutine
 - **Channels** - buffered channels represent forks
-- **Even/odd strategy** - asymmetric fork picking avoids deadlock
+- **Context** - `errgroup.WithContext` for coordinated cancellation
+- **Mutex** - protects shared state
+
+### Deadlock Prevention
+- **Resource hierarchy** - always acquire lower-indexed fork first to break circular wait
+- **Even/odd initial delays** - stagger philosopher start
+
+### Error Handling
+- **Sentinel errors** - `ErrInvalidArgs`, `ErrInvalidValue`, `ErrStarvation`
+- **Error wrapping** - `%w` with context, checked via `errors.Is()`
 
 ## Usage
 
@@ -21,15 +31,18 @@ A classic concurrency problem where five philosophers sit at a round table and s
 ## Example
 
 ```bash
-   go run . 5 800 50 50
+go run . 5 800 200 200        # Runs indefinitely
+go run . 5 610 200 200        # Tighter timing
+go run . 200 410 200 200      # Stress test: 200 philosophers
 ```
    
 ## Status
 
-✅ Core simulation, deadlock prevention, tests  
-🚧 Death detection, one philo edge case, times_must_eat, graceful shutdown
+✅ Implemented and tested  
+🚧 TODO: single philosopher edge case, `times_must_eat` parameter
 
 ## Testing
 ```bash
 go test -v
 go test -race
+```
