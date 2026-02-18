@@ -67,7 +67,7 @@ func (philo *Philosopher) run(ctx context.Context, conf *Config) error {
 }
 
 func (philo *Philosopher) initialDelay(ctx context.Context, conf *Config) error {
-	if philo.id % 2 == 0 {
+	if philo.id % 2 == 0 || conf.NumPhilos == 1  {
 		return nil
 	}
 
