@@ -33,23 +33,10 @@ func (philo *Philosopher) run(ctx context.Context, conf *Config) error {
         // Think
         philo.printAction(philo.id, "is thinking", conf)
 
-        // Take forks
-		if err := philo.takeForks(ctx, conf); err != nil {
+		//Eat (take forks, eat, realise forks)
+		if err := philo.eat(ctx, conf); err != nil {
 			return err
 		}
-
-        // Eat
-		philo.mtx.Lock()
-		philo.lastMeal = time.Now()
-		philo.mtx.Unlock()
-		philo.printAction(philo.id, "is eating", conf)
-		if err := philo.waitOrCancel(ctx, conf.TimeToEat); err != nil {
-			return err
-		}
-
-        // Release forks
-		philo.leftFork <- true
-        philo.rightFork <- true 
 
         // Sleep
         philo.printAction(philo.id, "is sleeping", conf)
@@ -77,6 +64,44 @@ func (philo *Philosopher) initialDelay(ctx context.Context, conf *Config) error 
 	}
 
 	return philo.waitOrCancel(ctx, delay)
+}
+
+
+func (philo *Philosopher) waitOrCancel(ctx context.Context, duration time.Duration) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-time.After(duration):
+		return nil
+	}
+}
+
+func (philo *Philosopher) printAction(id int, action string, conf *Config) {
+    timestamp := time.Since(conf.StartTime).Milliseconds()
+    fmt.Printf("%d %d %s\n", timestamp, id, action)
+}
+
+func (philo *Philosopher) eat(ctx context.Context, conf *Config) error {
+	 // Take forks
+	 if err := philo.takeForks(ctx, conf); err != nil {
+		return err
+	}
+
+	// Update last meal time
+	philo.mtx.Lock()
+	philo.lastMeal = time.Now()
+	philo.mtx.Unlock()
+
+	//Eat
+	philo.printAction(philo.id, "is eating", conf)
+	if err := philo.waitOrCancel(ctx, conf.TimeToEat); err != nil {
+		philo.releaseForks()
+		return err
+	}
+
+	// Release forks
+	philo.releaseForks()
+	return nil
 }
 
 func (philo *Philosopher)takeForks(ctx context.Context, conf *Config) error {
@@ -111,16 +136,7 @@ func takeFork(ctx context.Context, fork chan bool) error {
 	}
 }
 
-func (philo *Philosopher) waitOrCancel(ctx context.Context, duration time.Duration) error {
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	case <-time.After(duration):
-		return nil
-	}
-}
-
-func (philo *Philosopher) printAction(id int, action string, conf *Config) {
-    timestamp := time.Since(conf.StartTime).Milliseconds()
-    fmt.Printf("%d %d %s\n", timestamp, id, action)
+func (philo *Philosopher) releaseForks() {
+	philo.leftFork <- true
+	philo.rightFork <- true 
 }
