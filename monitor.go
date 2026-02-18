@@ -29,7 +29,8 @@ func checkIsAlive(philo *Philosopher, conf *Config) error {
 	defer philo.mtx.Unlock()
 
 	if time.Since(philo.lastMeal) > conf.TimeToDie {
-		return fmt.Errorf("%w: philosopher %d died", ErrStarvation, philo.id)
+		timestamp := time.Since(conf.StartTime).Milliseconds()
+        return fmt.Errorf("%d %d died", timestamp, philo.id)
 	}
 	return nil
 }
