@@ -13,9 +13,12 @@ func monitor(ctx context.Context, philos []*Philosopher, conf *Config) error {
 	for {
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			return nil
 		case <-ticker.C:
 			for _, philo := range philos {
+				if philo.done.Load() == 1 {
+					continue
+				}
 				if err := checkIsAlive(philo, conf); err != nil {
 					return err
 				}

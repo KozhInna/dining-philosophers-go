@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -16,9 +17,10 @@ type Philosopher struct {
     timesEaten  int
     lastMeal    time.Time
     mtx         sync.Mutex
+	done		atomic.Int32
 }
 
-func (philo *Philosopher) run(ctx context.Context, conf *Config) error {
+func (philo *Philosopher) run(ctx context.Context, conf *Config, cancel context.CancelFunc) error {
 	//Initial delay
 	if err := philo.initialDelay(ctx, conf); err != nil {
 		return err
@@ -27,15 +29,22 @@ func (philo *Philosopher) run(ctx context.Context, conf *Config) error {
     for {
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			return nil
 		default:
 		}
         // Think
         philo.printAction(philo.id, "is thinking", conf)
 
 		//Eat (take forks, eat, realise forks)
-		if err := philo.eat(ctx, conf); err != nil {
+		doneMeal, err := philo.eat(ctx, conf) 
+		if err != nil {
 			return err
+		} 
+		if doneMeal {
+			if conf.NumPhilosDone.Load() == int32(conf.NumPhilos) {
+				cancel()
+			}
+			return nil
 		}
 
         // Sleep
@@ -70,7 +79,7 @@ func (philo *Philosopher) initialDelay(ctx context.Context, conf *Config) error 
 func (philo *Philosopher) waitOrCancel(ctx context.Context, duration time.Duration) error {
 	select {
 	case <-ctx.Done():
-		return ctx.Err()
+		return nil
 	case <-time.After(duration):
 		return nil
 	}
@@ -81,10 +90,11 @@ func (philo *Philosopher) printAction(id int, action string, conf *Config) {
     fmt.Printf("%d %d %s\n", timestamp, id, action)
 }
 
-func (philo *Philosopher) eat(ctx context.Context, conf *Config) error {
+func (philo *Philosopher) eat(ctx context.Context, conf *Config) (bool, error) {
+
 	 // Take forks
 	 if err := philo.takeForks(ctx, conf); err != nil {
-		return err
+		return false, err
 	}
 
 	// Update last meal time
@@ -96,12 +106,21 @@ func (philo *Philosopher) eat(ctx context.Context, conf *Config) error {
 	philo.printAction(philo.id, "is eating", conf)
 	if err := philo.waitOrCancel(ctx, conf.TimeToEat); err != nil {
 		philo.releaseForks()
-		return err
+		return false, err
 	}
 
 	// Release forks
 	philo.releaseForks()
-	return nil
+
+	// Increment counter and check if done
+	philo.timesEaten++
+	if conf.TimesToEat > 0 && philo.timesEaten >= conf.TimesToEat {
+		philo.done.Store(1)
+		conf.NumPhilosDone.Add(1)
+		return true, nil  
+	}
+
+	return false, nil
 }
 
 func (philo *Philosopher)takeForks(ctx context.Context, conf *Config) error {

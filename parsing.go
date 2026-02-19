@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"strconv"
+	"sync/atomic"
 	"time"
 )
 type Config struct {
@@ -12,6 +13,7 @@ type Config struct {
     TimeToSleep time.Duration
     TimesToEat  int
 	StartTime   time.Time 
+	NumPhilosDone  atomic.Int32
 }
 
 func parseArgs(args []string) (*Config, error) {

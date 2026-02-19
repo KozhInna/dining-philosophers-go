@@ -4,6 +4,7 @@ import (
 	"time"
 	"context"
 	"golang.org/x/sync/errgroup"
+	"fmt"
 )
 
 func runSimulation(conf *Config) error {
@@ -30,13 +31,19 @@ func runSimulation(conf *Config) error {
         }
     }
 
-	g, ctx := errgroup.WithContext(context.Background())
+    // Parent context
+    parentCtx, cancel := context.WithCancel(context.Background())
+    defer cancel()
+
+    // Child context
+    g, ctx := errgroup.WithContext(parentCtx)
+
     // Start all philosophers as goroutines with context cancellation
     for _, philo := range philos {
 		p := philo
 
         g.Go(func() error {
-            return p.run(ctx, conf)
+            return p.run(ctx, conf, cancel)
         })
     }
 
@@ -44,5 +51,10 @@ func runSimulation(conf *Config) error {
 		return monitor(ctx, philos, conf)
 	})
 
-	return g.Wait()
+	err := g.Wait()
+	if err == nil {
+		timestamp := time.Since(conf.StartTime).Milliseconds()
+		fmt.Printf("%d all philosophers have eaten enough\n", timestamp)
+	}
+	return err
 }
