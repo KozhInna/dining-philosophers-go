@@ -68,7 +68,7 @@ func (philo *Philosopher) initialDelay(ctx context.Context, conf *Config) error 
 	}
 
 	delay := conf.TimeToEat
-	if philo.id == conf.NumPhilos && conf.NumPhilos != 1 {
+	if philo.id == conf.NumPhilos {
 		delay = conf.TimeToEat * 2
 	}
 
@@ -104,10 +104,7 @@ func (philo *Philosopher) eat(ctx context.Context, conf *Config) (bool, error) {
 
 	//Eat
 	philo.printAction(philo.id, "is eating", conf)
-	if err := philo.waitOrCancel(ctx, conf.TimeToEat); err != nil {
-		philo.releaseForks()
-		return false, err
-	}
+	philo.waitOrCancel(ctx, conf.TimeToEat)
 
 	// Release forks
 	philo.releaseForks()
