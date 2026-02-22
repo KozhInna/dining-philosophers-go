@@ -1,8 +1,6 @@
 package main
 
 import (
-	"context"
-	"errors"
 	"testing"
 	"time"
 )
@@ -49,8 +47,8 @@ func TestPhilosophers_Survive(t *testing.T) {
 
 			t.Logf("Received error: %v", err)
 			
-			if err != nil && !errors.Is(err, context.Canceled) {
-				t.Errorf("expected clean completion (context.Canceled), got: %v", err)
+			if err != nil {
+				t.Errorf("expected clean completion, got: %v", err)
 			}
 		})
 	}
