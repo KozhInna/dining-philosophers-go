@@ -27,8 +27,8 @@ func TestPhilosophers_Survive(t *testing.T) {
 		},
 		{
 			name:        "many philosophers",
-			numPhilos:   10,
-			timeToDie:   200 * time.Millisecond,
+			numPhilos:   200,
+			timeToDie:   110 * time.Millisecond,
 			timeToEat:   50 * time.Millisecond,
 			timeToSleep: 50 * time.Millisecond,
 			timesToEat:  3,
@@ -90,6 +90,6 @@ func TestSinglePhilosopher(t *testing.T) {
 	t.Logf("Received error: %v", err)
 	
 	if err == nil {
-		t.Error("single philosopher should die (can't get two forks)")
+		t.Fatal("single philosopher should die (can't get two forks)")
 	}
 }
