@@ -10,9 +10,9 @@ import (
 
 type Philosopher struct {
     id          int
-    leftFork    chan bool
+    leftFork    chan struct{}
 	leftForkIndex int
-    rightFork   chan bool
+    rightFork   chan struct{}
 	rightForkIndex int
     timesEaten  int
     lastMeal    time.Time
@@ -124,7 +124,7 @@ func (philo *Philosopher) eat(ctx context.Context, conf *Config) (bool, error) {
 }
 
 func (philo *Philosopher)takeForks(ctx context.Context, conf *Config) error {
-	var first, second chan bool
+	var first, second chan struct{}
 
 	// Take forks: lower-indexed fork first to prevent deadlock
 	if philo.leftForkIndex < philo.rightForkIndex {
@@ -146,7 +146,7 @@ func (philo *Philosopher)takeForks(ctx context.Context, conf *Config) error {
 	return nil
 }
 
-func takeFork(ctx context.Context, fork chan bool) error {
+func takeFork(ctx context.Context, fork chan struct{}) error {
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
@@ -156,6 +156,6 @@ func takeFork(ctx context.Context, fork chan bool) error {
 }
 
 func (philo *Philosopher) releaseForks() {
-	philo.leftFork <- true
-	philo.rightFork <- true 
+	philo.leftFork <- struct{}{}
+	philo.rightFork <- struct{}{} 
 }

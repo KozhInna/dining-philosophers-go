@@ -11,10 +11,10 @@ func runSimulation(conf *Config) error {
     conf.StartTime = time.Now()
 
     // Create forks
-    forks := make([]chan bool, conf.NumPhilos)
+    forks := make([]chan struct{}, conf.NumPhilos)
     for i := range forks {
-        forks[i] = make(chan bool, 1)
-        forks[i] <- true
+        forks[i] = make(chan struct{}, 1)
+        forks[i] <- struct{}{}
     }
 
     // Create philosophers
@@ -26,7 +26,6 @@ func runSimulation(conf *Config) error {
 			leftForkIndex: i,
             rightFork:  forks[(i+1)%conf.NumPhilos],
 			rightForkIndex: (i+1)%conf.NumPhilos,
-            timesEaten: 0,
             lastMeal:   conf.StartTime,
         }
     }
